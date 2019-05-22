@@ -2,6 +2,7 @@ package org.jboss.resteasy.client.jaxrs.internal.proxy;
 
 import org.jboss.resteasy.client.jaxrs.ProxyConfig;
 import org.jboss.resteasy.client.jaxrs.ResteasyWebTarget;
+import org.jboss.resteasy.client.jaxrs.internal.CleanableRxInvoker;
 import org.jboss.resteasy.client.jaxrs.internal.ClientConfiguration;
 import org.jboss.resteasy.client.jaxrs.internal.ClientInvocation;
 import org.jboss.resteasy.client.jaxrs.internal.ClientInvocationBuilder;
@@ -49,9 +50,15 @@ public class ClientInvoker implements MethodInvoker
    protected ClientConfiguration invokerConfig;
    protected RxInvokerProvider<?> rxInvokerProvider;
    protected SyncInvoker syncInvoker;
+   private Runnable asyncInvocationCleanUp;
 
 
-   public ClientInvoker(final ResteasyWebTarget parent, final Class<?> declaring, final Method method, final ProxyConfig config)
+   public ClientInvoker(final ResteasyWebTarget parent, final Class<?> declaring, final Method method, final ProxyConfig config) {
+      this(parent, declaring, method, config, null);
+   }
+
+   public ClientInvoker(final ResteasyWebTarget parent, final Class<?> declaring, final Method method, final ProxyConfig config,
+                        final Runnable asyncInvocationCleanUp)
    {
       // webTarget must be a clone so that it has a cloned ClientConfiguration so we can apply DynamicFeature
       if (method.isAnnotationPresent(Path.class))
@@ -90,6 +97,7 @@ public class ClientInvoker implements MethodInvoker
       entityExtractorFactory = new DefaultEntityExtractorFactory();
       this.extractor = entityExtractorFactory.createExtractor(method);
       rxInvokerProvider = invokerConfig.getRxInvokerProviderFromReactiveClass(method.getReturnType());
+      this.asyncInvocationCleanUp = asyncInvocationCleanUp;
    }
 
    public MediaType getAccepts()
@@ -124,6 +132,10 @@ public class ClientInvoker implements MethodInvoker
          executor = webTarget.getResteasyClient().asyncInvocationExecutor();
       }
       RxInvoker<?> rxInvoker = (RxInvoker<?>) rxInvokerProvider.getRxInvoker(builder, executor);
+      if (rxInvoker instanceof CleanableRxInvoker)
+      {
+         ((CleanableRxInvoker) rxInvoker).setCleanUp(asyncInvocationCleanUp);
+      }
       Type type = method.getGenericReturnType();
       if (type instanceof ParameterizedType)
       {

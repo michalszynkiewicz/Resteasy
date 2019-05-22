@@ -25,12 +25,26 @@ public class AsyncInvocationInterceptorHandler {
 
     private static final ThreadLocal<Collection<AsyncInvocationInterceptor>> threadBoundInterceptors = new ThreadLocal<>();
 
+    private static final ThreadLocal<Collection<AsyncInvocationInterceptor>> interceptorsToClear = new ThreadLocal<>();
+
     public static void register(Collection<AsyncInvocationInterceptor> interceptor) {
         threadBoundInterceptors.set(interceptor);
     }
 
     public static ExecutorService wrapExecutorService(ExecutorService service) {
         return new ExecutorServiceWrapper(service, new Decorator());
+    }
+
+    public static void cleanUp() {
+        System.out.println("called clean-up");
+        Collection<AsyncInvocationInterceptor> interceptors = interceptorsToClear.get();
+        if (interceptors != null) {
+            try {
+                Thread.sleep(1000L);// mstodo remove sleep
+            } catch (Exception ignored) {}
+            System.out.println("calling remove context"); System.out.flush();
+            interceptors.forEach(AsyncInvocationInterceptor::removeContext);
+        }
     }
 
     public static class Decorator implements ExecutorServiceWrapper.Decorator {
@@ -41,12 +55,9 @@ public class AsyncInvocationInterceptorHandler {
             return () -> {
                 if (interceptors != null) {
                     interceptors.forEach(AsyncInvocationInterceptor::applyContext);
+                    interceptorsToClear.set(interceptors);
                 }
-                try {
-                    runnable.run();
-                } finally {
-                    interceptors.forEach(AsyncInvocationInterceptor::removeContext);
-                }
+                runnable.run();
             };
         }
 
@@ -57,12 +68,9 @@ public class AsyncInvocationInterceptorHandler {
             return () -> {
                 if (interceptors != null) {
                     interceptors.forEach(AsyncInvocationInterceptor::applyContext);
+                    interceptorsToClear.set(interceptors);
                 }
-                try {
-                    return callable.call();
-                } finally {
-                    interceptors.forEach(AsyncInvocationInterceptor::removeContext);
-                }
+                return callable.call();
             };
         }
     }

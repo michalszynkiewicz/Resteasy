@@ -36,6 +36,7 @@ public class ProxyBuilder<T>
    private ClassLoader loader;
    private MediaType serverConsumes;
    private MediaType serverProduces;
+   private Runnable asyncInvocationCleanUp;
 
    public static <T> ProxyBuilder<T> builder(Class<T> iface, WebTarget webTarget)
    {
@@ -43,7 +44,7 @@ public class ProxyBuilder<T>
    }
 
    @SuppressWarnings("unchecked")
-   public static <T> T proxy(final Class<T> iface, WebTarget base, final ProxyConfig config)
+   public static <T> T proxy(final Class<T> iface, WebTarget base, final ProxyConfig config, Runnable asyncInvocationCleanUp)
    {
       if (iface.isAnnotationPresent(Path.class))
       {
@@ -65,7 +66,7 @@ public class ProxyBuilder<T>
          Set<String> httpMethods = IsHttpMethod.getHttpMethods(method);
          if ((httpMethods == null || httpMethods.size() == 0) && method.isAnnotationPresent(Path.class) && method.getReturnType().isInterface())
          {
-            invoker = new SubResourceInvoker((ResteasyWebTarget)base, method, config);
+            invoker = new SubResourceInvoker((ResteasyWebTarget)base, method, config, asyncInvocationCleanUp);
          }
          else if (httpMethods == null) {
             // ignore methods without http method annotations
@@ -73,7 +74,7 @@ public class ProxyBuilder<T>
          }
          else
          {
-            invoker = createClientInvoker(iface, method, (ResteasyWebTarget)base, config);
+            invoker = createClientInvoker(iface, method, (ResteasyWebTarget)base, config, asyncInvocationCleanUp);
          }
          methodMap.put(method, invoker);
       }
@@ -88,6 +89,7 @@ public class ProxyBuilder<T>
       // Collection will cause equals and hashCode to be invoked. The Spring
       // infrastructure had some problems without this.
       clientProxy.setClazz(iface);
+      clientProxy.setAsyncInvocationCleanUp(asyncInvocationCleanUp);
 
       ClassLoader cl = config.getLoader();
       try {
@@ -99,14 +101,14 @@ public class ProxyBuilder<T>
       return (T) Proxy.newProxyInstance(cl, intfs, clientProxy);
    }
 
-   private static <T> ClientInvoker createClientInvoker(Class<T> clazz, Method method, ResteasyWebTarget base, ProxyConfig config)
+   private static <T> ClientInvoker createClientInvoker(Class<T> clazz, Method method, ResteasyWebTarget base, ProxyConfig config, Runnable asyncInvocationCleanUp)
    {
       Set<String> httpMethods = IsHttpMethod.getHttpMethods(method);
       if (httpMethods == null || httpMethods.size() != 1)
       {
          throw new RuntimeException(Messages.MESSAGES.mustUseExactlyOneHttpMethod(method.toString()));
       }
-      ClientInvoker invoker = new ClientInvoker(base, clazz, method, config);
+      ClientInvoker invoker = new ClientInvoker(base, clazz, method, config, asyncInvocationCleanUp);
       invoker.setHttpMethod(httpMethods.iterator().next());
       return invoker;
    }
@@ -161,9 +163,16 @@ public class ProxyBuilder<T>
       this.serverConsumes = MediaType.valueOf(type);
       return this;
    }
+
+   public ProxyBuilder<T> asyncInvocationCleanUp(final Runnable cleanUp)
+   {
+      this.asyncInvocationCleanUp = cleanUp;
+      return this;
+   }
+
    public T build()
    {
-      return proxy(iface, webTarget, new ProxyConfig(loader, serverConsumes, serverProduces));
+      return proxy(iface, webTarget, new ProxyConfig(loader, serverConsumes, serverProduces), asyncInvocationCleanUp);
    }
 
 

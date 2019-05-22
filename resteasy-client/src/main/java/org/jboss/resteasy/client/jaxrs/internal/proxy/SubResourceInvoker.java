@@ -19,11 +19,13 @@ public class SubResourceInvoker implements MethodInvoker
    final ResteasyWebTarget parent;
    String[] pathParams;
    boolean hasPathParams;
+   Runnable asyncInvocationCleanup;
 
-   public SubResourceInvoker(final ResteasyWebTarget parent, final Method method, final ProxyConfig config)
+   public SubResourceInvoker(final ResteasyWebTarget parent, final Method method, final ProxyConfig config, final Runnable asyncInvocationCleanup)
    {
       this.config = config;
       this.method = method;
+      this.asyncInvocationCleanup = asyncInvocationCleanup;
       this.iface = method.getReturnType();
       pathParams = new String[method.getParameterTypes().length];
       for (int i = 0; i < pathParams.length; i++)
@@ -64,6 +66,6 @@ public class SubResourceInvoker implements MethodInvoker
          }
          target = parent.resolveTemplates(params);
       }
-      return ProxyBuilder.proxy(iface, target, config);
+      return ProxyBuilder.proxy(iface, target, config, asyncInvocationCleanup);
    }
 }

@@ -199,6 +199,7 @@ class RestClientBuilderImpl implements RestClientBuilder {
         actualClient = client.target(baseURI)
                 .proxyBuilder(aClass)
                 .classloader(classLoader)
+                .asyncInvocationCleanUp(AsyncInvocationInterceptorHandler::cleanUp)
                 .defaultConsumes(MediaType.WILDCARD)
                 .defaultProduces(MediaType.WILDCARD).build();
 

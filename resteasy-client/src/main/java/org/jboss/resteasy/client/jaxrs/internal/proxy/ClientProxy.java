@@ -21,6 +21,7 @@ public class ClientProxy implements InvocationHandler
    private Class<?> clazz;
    private final WebTarget target;
    private final ProxyConfig config;
+   private Runnable asyncInvocationCleanUp;
 
    public ClientProxy(final Map<Method, MethodInvoker> methodMap, final WebTarget target, final ProxyConfig config)
    {
@@ -65,7 +66,7 @@ public class ClientProxy implements InvocationHandler
          }
          else if(method.getName().equals("as") && args.length == 1 && args[0] instanceof Class)
          {
-            return ProxyBuilder.proxy((Class<?>)args[0], target, config);
+            return ProxyBuilder.proxy((Class<?>)args[0], target, config, asyncInvocationCleanUp);
          }
       }
 
@@ -98,5 +99,9 @@ public class ClientProxy implements InvocationHandler
    public String toString()
    {
       return Messages.MESSAGES.resteasyClientProxyFor(clazz.getName());
+   }
+
+   public void setAsyncInvocationCleanUp(Runnable asyncInvocationCleanUp) {
+      this.asyncInvocationCleanUp = asyncInvocationCleanUp;
    }
 }
